@@ -2,41 +2,157 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mini Pacman</title>
+<title>Pacman Complete</title>
 <style>
-  canvas { background: black; display: block; margin: auto; }
+  body { margin:0; background:black; color:white; text-align:center; }
+  canvas { display:block; margin:auto; background:black; }
 </style>
 </head>
 <body>
 
-<canvas id="game" width="400" height="400"></canvas>
+<h2>Pacman風ゲーム（矢印キーで操作）</h2>
+<p id="score">Score: 0</p>
+<canvas id="game" width="420" height="420"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-let x = 200;
-let y = 200;
-let speed = 3;
+const tileSize = 20;
+const rows = 21;
+const cols = 21;
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "ArrowUp") y -= speed;
-  if (e.key === "ArrowDown") y += speed;
-  if (e.key === "ArrowLeft") x -= speed;
-  if (e.key === "ArrowRight") x += speed;
+let score = 0;
+let gameOver = false;
+
+// マップ（1=壁, 0=道, 2=ドット）
+let map = [
+"111111111111111111111",
+"122222222122222222221",
+"121111122121111122121",
+"122222222222222222221",
+"121111121111121111121",
+"122222122222122222221",
+"111121121111121121111",
+"000021122222211210000",
+"111121121111121121111",
+"122222122222122222221",
+"121111121111121111121",
+"122222222122222222221",
+"121111122121111122121",
+"122222222222222222221",
+"111111111111111111111"
+].map(row => row.split("").map(Number));
+
+// プレイヤー
+let player = { x: 1, y: 1, dirX: 0, dirY: 0 };
+
+// 敵
+let ghosts = [
+  { x: 10, y: 7, dirX: 1, dirY: 0 },
+  { x: 9, y: 7, dirX: -1, dirY: 0 }
+];
+
+// キー操作
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowUp") { player.dirX = 0; player.dirY = -1; }
+  if (e.key === "ArrowDown") { player.dirX = 0; player.dirY = 1; }
+  if (e.key === "ArrowLeft") { player.dirX = -1; player.dirY = 0; }
+  if (e.key === "ArrowRight") { player.dirX = 1; player.dirY = 0; }
 });
 
-function drawPacman() {
-  ctx.beginPath();
-  ctx.arc(x, y, 15, 0.2 * Math.PI, 1.8 * Math.PI);
-  ctx.lineTo(x, y);
-  ctx.fillStyle = "yellow";
-  ctx.fill();
+// 壁チェック
+function isWall(x, y) {
+  return map[y] && map[y][x] === 1;
 }
 
+// 更新
+function update() {
+  if (gameOver) return;
+
+  let nx = player.x + player.dirX;
+  let ny = player.y + player.dirY;
+
+  if (!isWall(nx, ny)) {
+    player.x = nx;
+    player.y = ny;
+  }
+
+  // ドット取得
+  if (map[player.y][player.x] === 2) {
+    map[player.y][player.x] = 0;
+    score += 10;
+    document.getElementById("score").innerText = "Score: " + score;
+  }
+
+  // 敵移動（ランダム）
+  ghosts.forEach(g => {
+    let dirs = [
+      [1,0],[-1,0],[0,1],[0,-1]
+    ];
+    let valid = dirs.filter(d => !isWall(g.x+d[0], g.y+d[1]));
+    let move = valid[Math.floor(Math.random()*valid.length)];
+    g.x += move[0];
+    g.y += move[1];
+  });
+
+  // 衝突判定
+  ghosts.forEach(g => {
+    if (g.x === player.x && g.y === player.y) {
+      gameOver = true;
+      alert("ゲームオーバー！");
+    }
+  });
+
+  // クリア判定
+  if (map.flat().every(v => v !== 2)) {
+    gameOver = true;
+    alert("クリア！");
+  }
+}
+
+// 描画
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  for (let y=0; y<map.length; y++) {
+    for (let x=0; x<map[y].length; x++) {
+      let tile = map[y][x];
+
+      if (tile === 1) {
+        ctx.fillStyle = "blue";
+        ctx.fillRect(x*tileSize, y*tileSize, tileSize, tileSize);
+      }
+
+      if (tile === 2) {
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(x*tileSize+10, y*tileSize+10, 3, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // プレイヤー
+  ctx.fillStyle = "yellow";
+  ctx.beginPath();
+  ctx.arc(player.x*tileSize+10, player.y*tileSize+10, 8, 0.2*Math.PI, 1.8*Math.PI);
+  ctx.lineTo(player.x*tileSize+10, player.y*tileSize+10);
+  ctx.fill();
+
+  // 敵
+  ctx.fillStyle = "red";
+  ghosts.forEach(g => {
+    ctx.beginPath();
+    ctx.arc(g.x*tileSize+10, g.y*tileSize+10, 8, 0, Math.PI*2);
+    ctx.fill();
+  });
+}
+
+// ループ
 function loop() {
-  ctx.clearRect(0, 0, 400, 400);
-  drawPacman();
+  update();
+  draw();
   requestAnimationFrame(loop);
 }
 
