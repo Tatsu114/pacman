@@ -6,12 +6,21 @@
 <style>
   body { margin:0; background:black; color:white; text-align:center; }
   canvas { display:block; margin:auto; background:black; }
+  button {
+    padding:10px 20px;
+    font-size:16px;
+    margin:10px;
+    cursor:pointer;
+  }
 </style>
 </head>
 <body>
 
-<h2>Pacman風ゲーム（矢印キーで操作）</h2>
+<h2>Pacman風ゲーム</h2>
 <p id="score">Score: 0</p>
+
+<button id="startBtn">ゲーム開始</button>
+
 <canvas id="game" width="420" height="420"></canvas>
 
 <script>
@@ -19,14 +28,13 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 const tileSize = 20;
-const rows = 21;
-const cols = 21;
 
 let score = 0;
-let gameOver = false;
+let gameOver = true;
+let gameStarted = false;
 
-// マップ（1=壁, 0=道, 2=ドット）
-let map = [
+// 初期マップ
+const originalMap = [
 "111111111111111111111",
 "122222222122222222221",
 "121111122121111122121",
@@ -42,33 +50,50 @@ let map = [
 "121111122121111122121",
 "122222222222222222221",
 "111111111111111111111"
-].map(row => row.split("").map(Number));
-
-// プレイヤー
-let player = { x: 1, y: 1, dirX: 0, dirY: 0 };
-
-// 敵
-let ghosts = [
-  { x: 10, y: 7, dirX: 1, dirY: 0 },
-  { x: 9, y: 7, dirX: -1, dirY: 0 }
 ];
+
+let map;
+
+// プレイヤー・敵
+let player;
+let ghosts;
+
+// 初期化
+function init() {
+  map = originalMap.map(row => row.split("").map(Number));
+  player = { x: 1, y: 1, dirX: 0, dirY: 0 };
+  ghosts = [
+    { x: 10, y: 7 },
+    { x: 9, y: 7 }
+  ];
+  score = 0;
+  document.getElementById("score").innerText = "Score: 0";
+  gameOver = false;
+}
+
+// スタートボタン
+document.getElementById("startBtn").addEventListener("click", () => {
+  init();
+  gameStarted = true;
+});
 
 // キー操作
 document.addEventListener("keydown", e => {
+  if (!gameStarted) return;
   if (e.key === "ArrowUp") { player.dirX = 0; player.dirY = -1; }
   if (e.key === "ArrowDown") { player.dirX = 0; player.dirY = 1; }
   if (e.key === "ArrowLeft") { player.dirX = -1; player.dirY = 0; }
   if (e.key === "ArrowRight") { player.dirX = 1; player.dirY = 0; }
 });
 
-// 壁チェック
+// 壁判定
 function isWall(x, y) {
   return map[y] && map[y][x] === 1;
 }
 
 // 更新
 function update() {
-  if (gameOver) return;
+  if (!gameStarted || gameOver) return;
 
   let nx = player.x + player.dirX;
   let ny = player.y + player.dirY;
@@ -78,25 +103,23 @@ function update() {
     player.y = ny;
   }
 
-  // ドット取得
+  // ドット
   if (map[player.y][player.x] === 2) {
     map[player.y][player.x] = 0;
     score += 10;
     document.getElementById("score").innerText = "Score: " + score;
   }
 
-  // 敵移動（ランダム）
+  // 敵移動
   ghosts.forEach(g => {
-    let dirs = [
-      [1,0],[-1,0],[0,1],[0,-1]
-    ];
+    let dirs = [[1,0],[-1,0],[0,1],[0,-1]];
     let valid = dirs.filter(d => !isWall(g.x+d[0], g.y+d[1]));
     let move = valid[Math.floor(Math.random()*valid.length)];
     g.x += move[0];
     g.y += move[1];
   });
 
-  // 衝突判定
+  // 衝突
   ghosts.forEach(g => {
     if (g.x === player.x && g.y === player.y) {
       gameOver = true;
@@ -104,7 +127,7 @@ function update() {
     }
   });
 
-  // クリア判定
+  // クリア
   if (map.flat().every(v => v !== 2)) {
     gameOver = true;
     alert("クリア！");
@@ -114,6 +137,13 @@ function update() {
 // 描画
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if (!gameStarted) {
+    ctx.fillStyle = "white";
+    ctx.font = "20px sans-serif";
+    ctx.fillText("ボタンを押して開始", 110, 200);
+    return;
+  }
 
   for (let y=0; y<map.length; y++) {
     for (let x=0; x<map[y].length; x++) {
