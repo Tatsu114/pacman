@@ -107,6 +107,9 @@ document.getElementById("startBtn").addEventListener("click", () => {
   gameStarted = true;
 });
 
+let ghostTimer = 0;
+let ghostSpeed = 10; // 数字を大きくすると遅くなる
+  
 // ★スマホ用方向操作
 function setDir(dx, dy) {
   if (!gameStarted) return;
@@ -144,6 +147,9 @@ function update() {
     document.getElementById("score").innerText = "Score: " + score;
   }
 
+ghostTimer++;
+
+if (ghostTimer % ghostSpeed === 0) {
   ghosts.forEach(g => {
     let dirs = [[1,0],[-1,0],[0,1],[0,-1]];
     let valid = dirs.filter(d => !isWall(g.x+d[0], g.y+d[1]));
@@ -151,7 +157,8 @@ function update() {
     g.x += move[0];
     g.y += move[1];
   });
-
+}
+  
   ghosts.forEach(g => {
     if (g.x === player.x && g.y === player.y) {
       gameOver = true;
