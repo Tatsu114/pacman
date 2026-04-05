@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Pacman Complete</title>
+<title>Pacman 完全版</title>
 <style>
   body { margin:0; background:black; color:white; text-align:center; }
   canvas { display:block; margin:auto; background:black; }
@@ -10,7 +10,7 @@
   button {
     padding:10px 20px;
     font-size:16px;
-    margin:10px;
+    margin:5px;
   }
 
   .controls {
@@ -30,16 +30,16 @@
     border-radius:10px;
   }
 
-  .btn:active {
-    background:#777;
-  }
+  .btn:active { background:#777; }
 </style>
 </head>
 <body>
 
-<h2>Pacman風ゲーム</h2>
+<h2>Pacman風ゲーム（完全版）</h2>
 <p id="score">Score: 0</p>
+
 <button id="startBtn">ゲーム開始</button>
+<button onclick="togglePause()">一時停止</button>
 
 <canvas id="game" width="420" height="420"></canvas>
 
@@ -63,20 +63,21 @@ const ctx = canvas.getContext("2d");
 
 const tileSize = 20;
 
-let score = 0;
-let gameStarted = false;
-let gameOver = true;
+let score, gameStarted, gameOver, paused;
+let moveTimer, ghostTimer;
 
-let moveTimer = 0;
-let moveSpeed = 8;
+let powerMode, powerTimer;
+let mouth;
 
-let ghostTimer = 0;
-let ghostSpeed = 12;
+let player, ghosts, map;
 
-// マップ
+const moveSpeed = 8;
+const ghostSpeed = 12;
+
+// マップ（3＝パワーエサ）
 const originalMap = [
 "111111111111111111111",
-"122222222122222222221",
+"132222222122222222231",
 "121111122121111122121",
 "122222222222222222221",
 "121111121111121111121",
@@ -88,11 +89,9 @@ const originalMap = [
 "121111121111121111121",
 "122222222122222222221",
 "121111122121111122121",
-"122222222222222222221",
+"132222222222222222231",
 "111111111111111111111"
 ];
-
-let map, player, ghosts;
 
 // 初期化
 function init() {
@@ -110,25 +109,38 @@ function init() {
   ];
 
   score = 0;
-  document.getElementById("score").innerText = "Score: 0";
-
   gameOver = false;
+  paused = false;
+
+  moveTimer = 0;
+  ghostTimer = 0;
+
+  powerMode = false;
+  powerTimer = 0;
+
+  mouth = 0;
+
+  document.getElementById("score").innerText = "Score: 0";
 }
 
 // スタート
-document.getElementById("startBtn").addEventListener("click", () => {
+document.getElementById("startBtn").onclick = () => {
   init();
   gameStarted = true;
-});
+};
 
-// スマホ操作
+// 一時停止
+function togglePause() {
+  paused = !paused;
+}
+
+// 操作
 function setDir(dx, dy) {
   if (!gameStarted) return;
   player.nextDirX = dx;
   player.nextDirY = dy;
 }
 
-// PC操作
 document.addEventListener("keydown", e => {
   if (!gameStarted) return;
   if (e.key === "ArrowUp") setDir(0,-1);
@@ -144,10 +156,11 @@ function isWall(x, y) {
 
 // 更新
 function update() {
-  if (!gameStarted || gameOver) return;
+  if (!gameStarted || gameOver || paused) return;
 
-  // プレイヤー移動（1マス）
   moveTimer++;
+
+  // プレイヤー移動
   if (moveTimer % moveSpeed === 0) {
 
     let nx = player.x + player.nextDirX;
@@ -166,38 +179,82 @@ function update() {
       player.y = ny;
     }
 
+    // ワープ
+    if (player.x < 0) player.x = map[0].length - 1;
+    if (player.x >= map[0].length) player.x = 0;
+
+    // エサ
     if (map[player.y][player.x] === 2) {
       map[player.y][player.x] = 0;
       score += 10;
-      document.getElementById("score").innerText = "Score: " + score;
     }
+
+    // パワーエサ
+    if (map[player.y][player.x] === 3) {
+      map[player.y][player.x] = 0;
+      powerMode = true;
+      powerTimer = 300;
+    }
+
+    document.getElementById("score").innerText = "Score: " + score;
   }
 
-  // 敵移動（遅め＋1マス）
+  // パワーモード
+  if (powerMode) {
+    powerTimer--;
+    if (powerTimer <= 0) powerMode = false;
+  }
+
+  // ゴースト移動
   ghostTimer++;
   if (ghostTimer % ghostSpeed === 0) {
     ghosts.forEach(g => {
-      let dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-      let valid = dirs.filter(d => !isWall(g.x+d[0], g.y+d[1]));
-      let move = valid[Math.floor(Math.random()*valid.length)];
-      g.x += move[0];
-      g.y += move[1];
+
+      let dx = player.x - g.x;
+      let dy = player.y - g.y;
+
+      let options = [];
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        options.push([Math.sign(dx), 0]);
+        options.push([0, Math.sign(dy)]);
+      } else {
+        options.push([0, Math.sign(dy)]);
+        options.push([Math.sign(dx), 0]);
+      }
+
+      options = options.concat([[1,0],[-1,0],[0,1],[0,-1]]);
+
+      let move = options.find(d => !isWall(g.x+d[0], g.y+d[1]));
+      if (move) {
+        g.x += move[0];
+        g.y += move[1];
+      }
     });
   }
 
   // 衝突
   ghosts.forEach(g => {
     if (g.x === player.x && g.y === player.y) {
-      gameOver = true;
-      alert("ゲームオーバー！");
+      if (powerMode) {
+        g.x = 10;
+        g.y = 7;
+        score += 50;
+      } else {
+        gameOver = true;
+        alert("ゲームオーバー！");
+      }
     }
   });
 
   // クリア
-  if (map.flat().every(v => v !== 2)) {
+  if (map.flat().every(v => v !== 2 && v !== 3)) {
     gameOver = true;
     alert("クリア！");
   }
+
+  // アニメーション
+  mouth += 0.2;
 }
 
 // 描画
@@ -225,19 +282,33 @@ function draw() {
         ctx.arc(x*tileSize+10, y*tileSize+10, 3, 0, Math.PI*2);
         ctx.fill();
       }
+
+      if (map[y][x] === 3) {
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(x*tileSize+10, y*tileSize+10, 6, 0, Math.PI*2);
+        ctx.fill();
+      }
     }
   }
 
-  // プレイヤー
+  // プレイヤー（口アニメ）
+  let open = Math.abs(Math.sin(mouth)) * 0.4;
   ctx.fillStyle = "yellow";
   ctx.beginPath();
-  ctx.arc(player.x*tileSize+10, player.y*tileSize+10, 8, 0.2*Math.PI, 1.8*Math.PI);
+  ctx.arc(
+    player.x*tileSize+10,
+    player.y*tileSize+10,
+    8,
+    open*Math.PI,
+    (2-open)*Math.PI
+  );
   ctx.lineTo(player.x*tileSize+10, player.y*tileSize+10);
   ctx.fill();
 
-  // 敵
-  ctx.fillStyle = "red";
+  // ゴースト
   ghosts.forEach(g => {
+    ctx.fillStyle = powerMode ? "blue" : "red";
     ctx.beginPath();
     ctx.arc(g.x*tileSize+10, g.y*tileSize+10, 8, 0, Math.PI*2);
     ctx.fill();
